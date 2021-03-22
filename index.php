@@ -1,21 +1,37 @@
 <?php 
-​
+    /*
+        This function expects an input from user that is made like slug: ex. Shtepi per kater vete ne Tirane
+
+        This code is used to search for sentences in database, first it tries to find result with the whole sentence, if there is no result, the code seperates the sentence based on words
+        and removes words starting from the end of the sentence till it finds a matching result. If the sentence is trimmed down to one word and there is no result it will
+        try to search with each word in the sentence one by one 
+        
+        ex. Shtepi per kater vete ne Tirane
+            Shtepi kater vete Tirane
+            Shtepi kater vete
+            Shtepi
+            Tirane
+            kater
+            vete
+    */
+
     function slugSearchByKeyword($lang,$searchUrl)
     {
         
         App::setLocale($lang ?? 'en');
         $gjuha = $lang == 'en' ? 'gj2' : 'gj1';
-​
+
         $keywordsWithRegex = str_replace("+","[[:>:]]|[[:<:]]",$searchUrl);
         $keywords = str_replace("+"," ",$searchUrl);
-​
         $test = explode(" ",$keywords);
         $count = count($test);
+        
         if($count == 1)
         {
             $array = $test;
             goto end;
         }
+        
         $j = 0;
         $k = $count;
         $array1 = $array2 = array();
@@ -53,18 +69,18 @@
         usort($array, function($a, $b) {
             return strlen($b) <=> strlen($a);
         });
-​
+
         end:
-​
+
         $queryAdd = '';
-​
+
         foreach ($array as $key => $value) {
             $queryAdd .= 'WHEN `adresa` REGEXP "'.$value.'" THEN '.$key.' ';
         }
     
         $queryAdd .= ' ELSE '.count($array).'
         END, adresa ASC';
-​
+
         $searchProperties = DB::select('SELECT
         ArtID as id,
         ArtTitull_' . $gjuha . ' as title,
@@ -86,13 +102,13 @@
         AND deleted_at IS NULL)
         ORDER BY CASE '.$queryAdd
         );
-​
+
         $forSale = 1;
         $forRent = 1;
         $city = "";
         $values = "";
         $searchFor = $keywords;
-​
+
         $mapProperties = Cache::remember('index_map_result' . $gjuha . '_' . $forSale . '_' . $forRent . '_' . $city, 15,
         function () use ($gjuha, $forSale, $forRent, $city) {
             return DB::select('SELECT
@@ -116,20 +132,20 @@
             AND Qyteti_gj2 = ?
             ORDER BY priority DESC,  id DESC limit 100', [$forSale, $forRent, $city]);
         });
-​
+
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
         $col = new Collection($searchProperties);
         $perPage = 24;
         $currentPageSearchResults = $col->slice(($currentPage - 1) * $perPage, $perPage)->all();
         $pagination = new LengthAwarePaginator($currentPageSearchResults, count($col), $perPage);
-​
+
         $page = 1;
         if (isset($request->page)) {
             $page = $request->page;
         }
-​
+
         $pagination->setPath(request()->url());
-​
+
         return view('contents.search-by-keywords', [
             'pagination' => $pagination,
             'properties' => $currentPageSearchResults, // array_slice($currentPageSearchResults, $page, $perPage),
